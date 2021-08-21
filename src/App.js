@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useRef } from "react";
-import "./App.css";
 import { useDispatch, useSelector } from "react-redux";
 import { connect } from "./redux/blockchain/blockchainActions";
 import { fetchData } from "./redux/data/dataActions";
@@ -20,84 +19,83 @@ function App() {
   const data = useSelector((state) => state.data);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("");
-  const [tokens, setTokens] = useState([]);
-  const ipfsBasePath = "https://ipfs.infura.io/ipfs/";
-  const name = "NFT Name";
-  const description = "NFTS all around, whooooo!";
+  const [NFTS, setNFTS] = useState([]);
   const elementRef = useRef();
+  const ipfsBaseUrl = "https://ipfs.infura.io/ipfs/";
+  const name = "NFT name";
+  const description = "IPFS minted nft woooooo.";
 
-  const mint = (_imageUri) => {
+  console.log(NFTS);
+
+  const mint = (_uri) => {
     blockchain.smartContract.methods
-      .mint(blockchain.account, _imageUri)
+      .mint(blockchain.account, _uri)
       .send({ from: blockchain.account })
-      .once("error", function (err) {
+      .once("error", (err) => {
+        console.log(err);
         setLoading(false);
-        dispatch(fetchData(blockchain.account));
+        setStatus("Error");
       })
       .then((receipt) => {
+        console.log(receipt);
         setLoading(false);
-        setStatus("Your NFT is now minted.");
         clearCanvas();
-        console.log(_imageUri);
         dispatch(fetchData(blockchain.account));
+        setStatus("Successfully minting your NFT");
       });
   };
 
-  const createMetaDataAndMint = async (_name, _description, _image) => {
+  const createMetaDataAndMint = async (_name, _des, _imgBuffer) => {
     setLoading(true);
-    setStatus("");
+    setStatus("Uploading to IPFS");
     try {
-      const addedImage = await ipfsClient.add(_image);
-      const metaDataObject = {
+      const addedImage = await ipfsClient.add(_imgBuffer);
+      const metaDataObj = {
         name: _name,
-        description: _description,
-        image: `${ipfsBasePath}${addedImage.path}`,
+        description: _des,
+        image: ipfsBaseUrl + addedImage.path,
       };
-      const addedMetadata = await ipfsClient.add(
-        JSON.stringify(metaDataObject)
-      );
-      console.table(metaDataObject);
-      mint(`${ipfsBasePath}${addedMetadata.path}`);
-      setStatus("Staring minting process.");
+      const addedMetaData = await ipfsClient.add(JSON.stringify(metaDataObj));
+      console.log(ipfsBaseUrl + addedMetaData.path);
+      mint(ipfsBaseUrl + addedMetaData.path);
     } catch (err) {
-      setLoading(false);
       console.log(err);
-      setStatus("Sorry something went wrong, try again later.");
+      setLoading(false);
+      setStatus("Error");
     }
   };
 
-  const getImageDataFromCanvas = () => {
-    const canvasElement = elementRef.current;
-    var dataURL = canvasElement.toDataURL("image/png");
-    const buffer = Buffer(dataURL.split(",")[1], "base64");
+  const startMintingProcess = () => {
+    createMetaDataAndMint(name, description, getImageData());
+  };
+
+  const getImageData = () => {
+    const canvasEl = elementRef.current;
+    let dataUrl = canvasEl.toDataURL("image/png");
+    const buffer = Buffer(dataUrl.split(",")[1], "base64");
     return buffer;
   };
 
-  const startMintingProcess = (_name, _description) => {
-    createMetaDataAndMint(_name, _description, getImageDataFromCanvas());
+  const fetchMetatDataForNFTS = () => {
+    setNFTS([]);
+    data.allTokens.forEach((nft) => {
+      fetch(nft.uri)
+        .then((response) => response.json())
+        .then((metaData) => {
+          setNFTS((prevState) => [
+            ...prevState,
+            { id: nft.id, metaData: metaData },
+          ]);
+        })
+        .catch((err) => {
+          console.log(err);
+        });
+    });
   };
 
   const clearCanvas = () => {
-    const canvasElement = elementRef.current;
-    canvasElement.clear();
-  };
-
-  const fetchMetaData = () => {
-    setTokens([]);
-    data.allTokens.forEach((element) => {
-      fetch(element.uri)
-        .then((response) => response.json())
-        .then((metaData) => {
-          setTokens((prevState) => [
-            ...prevState,
-            { id: element.id, metaData: metaData },
-          ]);
-          console.log("Success:", metaData);
-        })
-        .catch((error) => {
-          console.error("Error:", error);
-        });
-    });
+    const canvasEl = elementRef.current;
+    canvasEl.clear();
   };
 
   useEffect(() => {
@@ -107,7 +105,7 @@ function App() {
   }, [blockchain.smartContract, dispatch]);
 
   useEffect(() => {
-    fetchMetaData();
+    fetchMetatDataForNFTS();
   }, [data.allTokens]);
 
   return (
@@ -132,77 +130,72 @@ function App() {
       ) : (
         <s.Container flex={1} ai={"center"} style={{ padding: 24 }}>
           <s.TextTitle style={{ textAlign: "center" }}>
-            Draw and mint your ARTWORK with {data.name}.
+            Welcome mint your signature
           </s.TextTitle>
-          <s.SpacerSmall />
-          {/* Upload */}
-          <s.Container ai={"center"} jc={"center"}>
-            {loading ? (
-              <s.TextDescription>loading...</s.TextDescription>
-            ) : (
-              <s.Container ai={"center"} jc={"center"} fd={"row"}>
-                <StyledButton
-                  onClick={(e) => {
-                    e.preventDefault();
-                    startMintingProcess(name, description);
-                  }}
-                >
-                  MINT
-                </StyledButton>
-                <s.SpacerMedium />
-                <StyledButton
-                  onClick={(e) => {
-                    e.preventDefault();
-                    clearCanvas();
-                  }}
-                >
-                  CLEAR
-                </StyledButton>
-              </s.Container>
-            )}
+          {loading ? (
+            <>
+              <s.SpacerSmall />
+              <s.TextDescription style={{ textAlign: "center" }}>
+                loading...
+              </s.TextDescription>
+            </>
+          ) : null}
+          {status !== "" ? (
+            <>
+              <s.SpacerSmall />
+              <s.TextDescription style={{ textAlign: "center" }}>
+                {status}
+              </s.TextDescription>
+            </>
+          ) : null}
+          <s.SpacerLarge />
+          <s.Container fd={"row"} jc={"center"}>
+            <StyledButton
+              onClick={(e) => {
+                e.preventDefault();
+                startMintingProcess();
+              }}
+            >
+              MINT
+            </StyledButton>
             <s.SpacerSmall />
-            {status !== "" ? (
-              <s.TextDescription>{status}</s.TextDescription>
-            ) : null}
-            <s.SpacerSmall />
-            <SignatureCanvas
-              penColor={"white"}
-              backgroundColor={"#3271bf"}
-              canvasProps={{ width: 350, height: 350 }}
-              ref={elementRef}
-            />
-            <s.SpacerMedium />
-            {tokens.length > 0 ? (
-              <s.Container
-                fd={"row"}
-                jc={"center"}
-                style={{
-                  padding: 24,
-                  backgroundColor: "#3b3b3b",
-                  flexWrap: "wrap",
-                }}
-              >
-                {tokens.map((item, index) => {
-                  console.log(tokens);
-                  return (
-                    <s.Container key={index} style={{ padding: 16 }}>
-                      <s.TextDescription>
-                        {item.metaData.name}
-                      </s.TextDescription>
-                      <s.SpacerSmall />
-                      <img
-                        alt={item.metaData.name}
-                        src={item.metaData.image}
-                        width={150}
-                      />
-                    </s.Container>
-                  );
-                })}
-              </s.Container>
-            ) : null}
+            <StyledButton
+              onClick={(e) => {
+                e.preventDefault();
+                clearCanvas();
+              }}
+            >
+              CLEAR
+            </StyledButton>
           </s.Container>
-          {/* Upload */}
-          <s.SpacerMedium />
+          <s.SpacerLarge />
+          <SignatureCanvas
+            backgroundColor={"#3271bf"}
+            canvasProps={{ width: 350, height: 350 }}
+            ref={elementRef}
+          />
+          <s.SpacerLarge />
+          {data.loading ? (
+            <>
+              <s.SpacerSmall />
+              <s.TextDescription style={{ textAlign: "center" }}>
+                loading...
+              </s.TextDescription>
+            </>
+          ) : (
+            NFTS.map((nft, index) => {
+              return (
+                <s.Container key={index} style={{ padding: 16 }}>
+                  <s.TextTitle>{nft.metaData.name}</s.TextTitle>
+                  <img
+                    alt={nft.metaData.name}
+                    src={nft.metaData.image}
+                    width={150}
+                  />
+                </s.Container>
+              );
+            })
+          )}
         </s.Container>
       )}
     </s.Screen>
